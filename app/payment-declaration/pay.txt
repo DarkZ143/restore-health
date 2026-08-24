@@ -1,0 +1,562 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  CreditCard,
+  FileCheck2,
+  Info,
+  LockKeyhole,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+
+type PlanData = {
+  planId: string;
+  planName: string;
+  price: string;
+  family: string;
+};
+
+export default function PaymentDeclarationPage() {
+  const router = useRouter();
+
+  const [plan, setPlan] = useState<PlanData>({
+    planId: "",
+    planName: "",
+    price: "",
+    family: "",
+  });
+
+  const [checkbox1, setCheckbox1] = useState(false);
+  const [checkbox2, setCheckbox2] = useState(false);
+  const [checkbox3, setCheckbox3] = useState(false);
+
+  /* ================================
+     GET DATA FROM URL
+  ================================= */
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    setPlan({
+      planId: params.get("planId") || "",
+      planName: params.get("plan") || "",
+      price: params.get("price") || "",
+      family: params.get("family") || "",
+    });
+  }, []);
+
+  /* ================================
+     PAYMENT CALCULATION
+  ================================= */
+
+  const numericPrice = Number(
+    plan.price.replace(/[^\d]/g, "")
+  );
+
+  const membershipPrice = Number.isNaN(numericPrice)
+    ? 0
+    : numericPrice;
+
+  const gstAmount = Math.round(
+    membershipPrice * 0.18
+  );
+
+  const totalAmount =
+    membershipPrice + gstAmount;
+
+  const allChecked =
+    checkbox1 && checkbox2 && checkbox3;
+
+  const acceptedCount = [
+    checkbox1,
+    checkbox2,
+    checkbox3,
+  ].filter(Boolean).length;
+
+  const formatPrice = (amount: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  /* ================================
+     PAYMENT BUTTON
+  ================================= */
+
+  const handlePayment = () => {
+    if (!allChecked) {
+      return;
+    }
+
+    if (!plan.planId) {
+      alert(
+        "Plan information is missing. Please choose the plan again."
+      );
+      return;
+    }
+
+    const params = new URLSearchParams({
+      planId: plan.planId,
+      plan: plan.planName,
+      family: plan.family,
+      price: String(membershipPrice),
+      gst: String(gstAmount),
+      total: String(totalAmount),
+    });
+
+    router.push(
+      `/payment?${params.toString()}`
+    );
+  };
+
+  return (
+    <main className="min-h-screen bg-[#f7faf7] px-4 py-6 dark:bg-[#07140e] sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-5xl">
+        {/* BACK BUTTON */}
+
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-100 bg-white px-4 py-2 text-sm font-bold text-[#064627] shadow-sm transition hover:bg-emerald-50 dark:border-emerald-900 dark:bg-[#0d1d14] dark:text-emerald-300"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Plans
+        </button>
+
+        {/* =============================
+            HEADER
+        ============================== */}
+
+        <div className="mb-8 text-center">
+          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#c89416]/30 bg-[#fff9e9] px-4 py-2 text-[10px] font-black uppercase tracking-[0.18em] text-[#9a6d00] dark:border-[#c89416]/40 dark:bg-[#c89416]/10 dark:text-[#e6bd50]">
+            <FileCheck2 className="h-4 w-4" />
+            Payment Declaration
+          </div>
+
+          <h1 className="text-3xl font-black text-[#064627] dark:text-emerald-300 sm:text-4xl">
+            Review & Confirm Your Plan
+          </h1>
+
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-500 dark:text-slate-300">
+            Please review your selected plan and
+            accept all three declarations before
+            proceeding to payment.
+          </p>
+        </div>
+
+        {/* =============================
+            GRID
+        ============================== */}
+
+        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+          {/* =============================
+              LEFT
+          ============================== */}
+
+          <div className="space-y-5">
+            {/* PLAN DETAILS */}
+
+            <div className="overflow-hidden rounded-3xl border border-[#dce9cf] bg-white shadow-sm dark:border-emerald-900 dark:bg-[#0d1d14]">
+              <div className="bg-[#064627] px-5 py-4 text-white">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="h-5 w-5" />
+
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-200">
+                      Selected Membership
+                    </p>
+
+                    <h2 className="font-black">
+                      Plan Details
+                    </h2>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 p-5 sm:grid-cols-3">
+                {/* PLAN */}
+
+                <div className="rounded-2xl border border-emerald-100 bg-[#f4faf1] p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                  <ShieldCheck className="mb-2 h-5 w-5 text-[#17643d]" />
+
+                  <p className="text-[9px] font-black uppercase text-slate-400">
+                    Plan
+                  </p>
+
+                  <p className="mt-1 font-black text-slate-900 dark:text-white">
+                    {plan.planName || "Not Selected"}
+                  </p>
+                </div>
+
+                {/* FAMILY */}
+
+                <div className="rounded-2xl border border-emerald-100 bg-[#f4faf1] p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                  <Users className="mb-2 h-5 w-5 text-[#17643d]" />
+
+                  <p className="text-[9px] font-black uppercase text-slate-400">
+                    Family
+                  </p>
+
+                  <p className="mt-1 font-black text-slate-900 dark:text-white">
+                    {plan.family || "—"}
+                  </p>
+                </div>
+
+                {/* PRICE */}
+
+                <div className="rounded-2xl border border-[#c89416]/30 bg-[#fff9e9] p-4 dark:border-[#c89416]/30 dark:bg-[#c89416]/10">
+                  <CreditCard className="mb-2 h-5 w-5 text-[#c89416]" />
+
+                  <p className="text-[9px] font-black uppercase text-slate-400">
+                    Price
+                  </p>
+
+                  <p className="mt-1 font-black text-[#9a6d00] dark:text-[#e6bd50]">
+                    {plan.price || "₹0"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* =============================
+                DECLARATIONS
+            ============================== */}
+
+            <div className="rounded-3xl border border-[#dce9cf] bg-white p-5 shadow-sm dark:border-emerald-900 dark:bg-[#0d1d14] sm:p-6">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#c89416]">
+                    Required
+                  </p>
+
+                  <h2 className="text-xl font-black text-slate-900 dark:text-white">
+                    Accept All Declarations
+                  </h2>
+                </div>
+
+                <div
+                  className={`flex h-12 w-12 items-center justify-center rounded-full font-black ${
+                    allChecked
+                      ? "bg-[#064627] text-white"
+                      : "bg-slate-100 text-slate-500 dark:bg-slate-800"
+                  }`}
+                >
+                  {acceptedCount}/3
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {/* =============================
+                    CHECKBOX 1
+                ============================== */}
+
+                <label
+                  className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition ${
+                    checkbox1
+                      ? "border-emerald-500 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/20"
+                      : "border-slate-200 hover:border-emerald-300 dark:border-slate-800"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checkbox1}
+                    onChange={(e) =>
+                      setCheckbox1(
+                        e.target.checked
+                      )
+                    }
+                    className="sr-only"
+                  />
+
+                  <div
+                    className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
+                      checkbox1
+                        ? "border-[#064627] bg-[#064627] text-white"
+                        : "border-slate-300 dark:border-slate-600"
+                    }`}
+                  >
+                    {checkbox1 && (
+                      <Check className="h-4 w-4 stroke-[3]" />
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="font-black text-slate-900 dark:text-white">
+                      Plan Details Confirmation
+                    </h3>
+
+                    <p className="mt-2 text-xs leading-6 text-slate-600 dark:text-slate-300 sm:text-sm">
+                      I have reviewed and understood
+                      the selected membership plan,
+                      family coverage, benefits,
+                      validity and applicable charges.
+                    </p>
+                  </div>
+                </label>
+
+                {/* =============================
+                    CHECKBOX 2
+                ============================== */}
+
+                <label
+                  className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition ${
+                    checkbox2
+                      ? "border-emerald-500 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/20"
+                      : "border-slate-200 hover:border-emerald-300 dark:border-slate-800"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checkbox2}
+                    onChange={(e) =>
+                      setCheckbox2(
+                        e.target.checked
+                      )
+                    }
+                    className="sr-only"
+                  />
+
+                  <div
+                    className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
+                      checkbox2
+                        ? "border-[#064627] bg-[#064627] text-white"
+                        : "border-slate-300 dark:border-slate-600"
+                    }`}
+                  >
+                    {checkbox2 && (
+                      <Check className="h-4 w-4 stroke-[3]" />
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="font-black text-slate-900 dark:text-white">
+                      Cancellation & Refund Policy
+                    </h3>
+
+                    <p className="mt-2 text-xs leading-6 text-slate-600 dark:text-slate-300 sm:text-sm">
+                      I understand and agree that
+                      once the membership plan is
+                      issued, it cannot be cancelled
+                      or refunded.
+                    </p>
+
+                    <Link
+                      href="/cancellation-and-refund-policy"
+                      onClick={(e) =>
+                        e.stopPropagation()
+                      }
+                      className="mt-2 inline-block text-xs font-black text-[#9a6d00] underline underline-offset-4 dark:text-[#e6bd50]"
+                    >
+                      Read Cancellation & Refund Policy
+                    </Link>
+                  </div>
+                </label>
+
+                {/* =============================
+                    CHECKBOX 3
+                ============================== */}
+
+                <label
+                  className={`flex cursor-pointer items-start gap-4 rounded-2xl border p-4 transition ${
+                    checkbox3
+                      ? "border-emerald-500 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/20"
+                      : "border-slate-200 hover:border-emerald-300 dark:border-slate-800"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checkbox3}
+                    onChange={(e) =>
+                      setCheckbox3(
+                        e.target.checked
+                      )
+                    }
+                    className="sr-only"
+                  />
+
+                  <div
+                    className={`mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 ${
+                      checkbox3
+                        ? "border-[#064627] bg-[#064627] text-white"
+                        : "border-slate-300 dark:border-slate-600"
+                    }`}
+                  >
+                    {checkbox3 && (
+                      <Check className="h-4 w-4 stroke-[3]" />
+                    )}
+                  </div>
+
+                  <div>
+                    <h3 className="font-black text-slate-900 dark:text-white">
+                      Payment Authorization
+                    </h3>
+
+                    <p className="mt-2 text-xs leading-6 text-slate-600 dark:text-slate-300 sm:text-sm">
+                      I confirm that the information
+                      provided is correct and I
+                      authorize payment for this
+                      membership plan.
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {/* STATUS */}
+
+              <div
+                className={`mt-5 flex items-start gap-3 rounded-xl border p-4 ${
+                  allChecked
+                    ? "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/20"
+                    : "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/20"
+                }`}
+              >
+                {allChecked ? (
+                  <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+                ) : (
+                  <Info className="h-5 w-5 shrink-0 text-amber-600" />
+                )}
+
+                <p className="text-xs font-bold leading-5">
+                  {allChecked
+                    ? "All declarations accepted. You can now proceed to payment."
+                    : `Please accept all declarations. ${acceptedCount} of 3 completed.`}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* =============================
+              PAYMENT SUMMARY
+          ============================== */}
+
+          <div>
+            <div className="sticky top-5 overflow-hidden rounded-3xl border border-[#dce9cf] bg-white shadow-lg dark:border-emerald-900 dark:bg-[#0d1d14]">
+              <div className="bg-[#064627] p-5 text-white">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="h-6 w-6" />
+
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-emerald-200">
+                      Secure Checkout
+                    </p>
+
+                    <h2 className="font-black">
+                      Payment Summary
+                    </h2>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-5">
+                {/* SELECTED PLAN */}
+
+                <div className="mb-5 rounded-2xl bg-[#f4faf1] p-4 dark:bg-emerald-950/20">
+                  <p className="text-[9px] font-black uppercase text-slate-400">
+                    Selected Plan
+                  </p>
+
+                  <p className="mt-1 text-lg font-black text-[#064627] dark:text-emerald-300">
+                    {plan.planName ||
+                      "No plan selected"}
+                  </p>
+
+                  {plan.family && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-300">
+                      Family Coverage: {plan.family}
+                    </p>
+                  )}
+                </div>
+
+                {/* PRICE */}
+
+                <div className="space-y-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold text-slate-500 dark:text-slate-300">
+                      Membership Fee
+                    </span>
+
+                    <span className="font-black text-slate-900 dark:text-white">
+                      {formatPrice(
+                        membershipPrice
+                      )}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between text-sm">
+                    <span className="font-semibold text-slate-500 dark:text-slate-300">
+                      GST (18%)
+                    </span>
+
+                    <span className="font-black text-slate-900 dark:text-white">
+                      {formatPrice(gstAmount)}
+                    </span>
+                  </div>
+
+                  <div className="border-t border-dashed border-slate-200 pt-4 dark:border-slate-700">
+                    <div className="flex items-end justify-between">
+                      <div>
+                        <p className="text-[9px] font-black uppercase text-slate-400">
+                          Total Payable
+                        </p>
+
+                        <p className="text-[10px] text-slate-400">
+                          Including GST
+                        </p>
+                      </div>
+
+                      <p className="text-2xl font-black text-[#064627] dark:text-emerald-300">
+                        {formatPrice(totalAmount)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* =============================
+                    PAYMENT BUTTON
+                ============================== */}
+
+                <button
+                  type="button"
+                  disabled={
+                    !allChecked ||
+                    !plan.planId ||
+                    membershipPrice <= 0
+                  }
+                  onClick={handlePayment}
+                  className={`mt-6 flex w-full items-center justify-center gap-2 rounded-full px-5 py-4 text-sm font-black transition-all ${
+                    allChecked &&
+                    plan.planId &&
+                    membershipPrice > 0
+                      ? "bg-[#064627] text-white shadow-lg hover:bg-[#095936]"
+                      : "cursor-not-allowed bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+                  }`}
+                >
+                  <LockKeyhole className="h-4 w-4" />
+
+                  {allChecked
+                    ? "Proceed to Payment"
+                    : `Accept ${
+                        3 - acceptedCount
+                      } More`}
+                </button>
+
+                <p className="mt-3 text-center text-[10px] font-semibold text-slate-400">
+                  Payment button will activate
+                  after accepting all 3 declarations.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
