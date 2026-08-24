@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import bcrypt from "bcryptjs";
 
 export async function POST(request: Request) {
   try {
@@ -10,16 +11,19 @@ export async function POST(request: Request) {
       .trim()
       .toLowerCase();
     const phoneNumber = String(body.phoneNumber || "").trim();
+    const password = String(body.password || "");
 
-    if (!fullName || !email || !phoneNumber) {
+    if (!fullName || !email || !phoneNumber || password.length < 6) {
       return NextResponse.json(
         {
           success: false,
-          message: "Full name, email and phone number are required.",
+          message: "Full name, email, phone number and a 6-character password are required.",
         },
         { status: 400 },
       );
     }
+
+    const passwordHash = await bcrypt.hash(password, 12);
 
     console.log("📝 Registering user:", {
       fullName,
@@ -50,6 +54,7 @@ export async function POST(request: Request) {
       fullName,
       email,
       phoneNumber,
+      passwordHash,
       phoneVerified: true,
       role: "user",
       status: "active",

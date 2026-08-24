@@ -1,5 +1,44 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import bcrypt from "bcryptjs";
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const phoneNumber = String(body.phoneNumber || "").trim();
+    const currentPassword = String(body.currentPassword || "");
+    const newPassword = String(body.newPassword || "");
+
+    if (!currentPassword) {
+      return NextResponse.json(
+        { success: false, message: "Current password is required." },
+        { status: 400 },
+      );
+    }
+
+    const snapshot = await adminDb.collection("users").where("phoneNumber", "==", phoneNumber).limit(1).get();
+    if (snapshot.empty) return NextResponse.json({ success: false, message: "User account not found." }, { status: 404 });
+
+    const doc = snapshot.docs[0];
+    const data = doc.data();
+    const updates: Record<string, unknown> = { updatedAt: new Date() };
+
+    if (!data.passwordHash || !(await bcrypt.compare(currentPassword, data.passwordHash))) {
+      return NextResponse.json({ success: false, message: "Current password is incorrect." }, { status: 400 });
+    }
+
+    if (newPassword) {
+      if (newPassword.length < 6) return NextResponse.json({ success: false, message: "New password must be at least 6 characters." }, { status: 400 });
+      updates.passwordHash = await bcrypt.hash(newPassword, 12);
+    }
+
+    await doc.ref.update(updates);
+    return NextResponse.json({ success: true, message: "Password updated successfully." });
+  } catch (error) {
+    console.error("Profile update error:", error);
+    return NextResponse.json({ success: false, message: "Failed to update profile." }, { status: 500 });
+  }
+}
 
 export async function GET(request: Request) {
   try {

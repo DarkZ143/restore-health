@@ -12,8 +12,12 @@ import {
   RefreshCw,
   ArrowLeft,
   CircleUserRound,
+  Eye,
+  EyeOff,
+  Save,
 } from "lucide-react";
 import Link from "next/link";
+import toast from "react-hot-toast";
 
 interface UserProfile {
   id: string;
@@ -53,6 +57,13 @@ export default function ProfilePage() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const loadProfile = async (isRefresh = false) => {
@@ -65,7 +76,8 @@ export default function ProfilePage() {
 
       setError("");
 
-      const storedUser = localStorage.getItem("user");
+      const storedUser =
+        localStorage.getItem("restorehealth_user") || localStorage.getItem("user");
 
       if (!storedUser) {
         setError("Your session could not be found. Please login again.");
@@ -81,7 +93,12 @@ export default function ProfilePage() {
         return;
       }
 
-      const phoneNumber = String(parsedUser.phoneNumber || "").trim();
+      const phoneNumber = String(
+        parsedUser.phoneNumber ||
+          localStorage.getItem("restorehealth_phone") ||
+          localStorage.getItem("userPhone") ||
+          "",
+      ).trim();
 
       if (!phoneNumber) {
         setError("Phone number is missing from your login session.");
@@ -103,9 +120,9 @@ export default function ProfilePage() {
       }
 
       setUser(data.user);
-
       // Keep latest user data locally.
       localStorage.setItem("user", JSON.stringify(data.user));
+      localStorage.setItem("restorehealth_user", JSON.stringify(data.user));
     } catch (err) {
       console.error("❌ Profile Error:", err);
 
@@ -117,6 +134,49 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+    }
+  };
+
+  const updateProfile = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) return;
+    setError("");
+
+    if (!currentPassword) {
+      toast.error("Enter your current password to change your password.");
+      return;
+    }
+    if (newPassword && newPassword.length < 6) {
+      toast.error("New password must be at least 6 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("New passwords do not match.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phoneNumber: user.phoneNumber,
+          currentPassword,
+          newPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error(data.message || "Failed to update profile.");
+
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Profile updated successfully.");
+    } catch (updateError) {
+      toast.error(updateError instanceof Error ? updateError.message : "Failed to update profile.");
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -309,6 +369,80 @@ export default function ProfilePage() {
               }
             />
           </div>
+        </section>
+
+        {/* Update Profile */}
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 px-5 py-5 sm:px-8">
+            <h3 className="text-lg font-bold text-slate-900">Change Password</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Your name and account details are managed by RestoreHealth.
+            </p>
+          </div>
+
+          <form onSubmit={updateProfile} className="space-y-5 p-5 sm:p-8">
+            <div>
+              <p className="text-sm font-bold text-slate-800">Change password</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Enter your current password to set a new one.
+              </p>
+            </div>
+
+            <label className="block text-sm font-semibold text-slate-700">
+              Current Password
+              <div className="relative">
+                <input
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 pr-12 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  type={showCurrentPassword ? "text" : "password"}
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+                <button type="button" onClick={() => setShowCurrentPassword((value) => !value)} className="absolute right-3 top-1/2 text-slate-500" aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}>
+                  {showCurrentPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+
+            <label className="block text-sm font-semibold text-slate-700">
+              New Password
+              <div className="relative">
+                <input
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 pr-12 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  autoComplete="new-password"
+                  minLength={6}
+                />
+                <button type="button" onClick={() => setShowNewPassword((value) => !value)} className="absolute right-3 top-1/2 text-slate-500" aria-label={showNewPassword ? "Hide new password" : "Show new password"}>
+                  {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+
+            <label className="block text-sm font-semibold text-slate-700">
+              Confirm New Password
+              <div className="relative">
+                <input
+                  className="mt-2 w-full rounded-xl border border-slate-200 px-4 py-3 pr-12 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  autoComplete="new-password"
+                  minLength={6}
+                />
+                <button type="button" onClick={() => setShowConfirmPassword((value) => !value)} className="absolute right-3 top-1/2 text-slate-500" aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}>
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            </label>
+
+            <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
+              <Save size={17} /> {saving ? "Saving..." : "Save changes"}
+            </button>
+          </form>
         </section>
 
         {/* Account Information */}
