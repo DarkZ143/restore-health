@@ -196,23 +196,25 @@ export default function Navbar() {
               2xl:w-60
             "
           >
-            <Image
-              src="/logo2.png"
-              alt="Restore Health Services Logo"
-              width={280}
-              height={104}
-              priority
-              className="
-                h-14
-                w-auto
-                object-contain
+            <Link href="/" aria-label="Restore Health Services home">
+              <Image
+                src="/logo2.png"
+                alt="Restore Health Services Logo"
+                width={280}
+                height={104}
+                priority
+                className="
+                  h-14
+                  w-auto
+                  object-contain
 
-                sm:h-15.5
-                lg:h-14.5
-                xl:h-16.5
-                2xl:h-19.5
-              "
-            />
+                  sm:h-15.5
+                  lg:h-14.5
+                  xl:h-16.5
+                  2xl:h-19.5
+                "
+              />
+            </Link>
 
             <p
               className="
