@@ -743,7 +743,7 @@ export default function PlansPage() {
                     </p>
 
                     <p className="text-[8px] font-bold uppercase tracking-wider text-slate-400 sm:text-[10px]">
-                      + GST (18%)
+                      + GST (5%)
                     </p>
                   </div>
 
@@ -1002,7 +1002,7 @@ export default function PlansPage() {
                         {plan.price}
 
                         <span className="ml-2 text-xs font-bold text-slate-400">
-                          + GST(18%)
+                          + GST(5%)
                         </span>
                       </p>
                     </div>

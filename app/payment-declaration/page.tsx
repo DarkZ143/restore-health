@@ -1391,7 +1391,7 @@ export default function PaymentDeclarationPage() {
 
                     <div className="flex justify-between gap-4 text-sm">
                       <span className="font-semibold text-slate-500 dark:text-slate-300">
-                        GST (18%)
+                        GST (5%)
                       </span>
 
                       <span className="font-black text-slate-900 dark:text-white">
