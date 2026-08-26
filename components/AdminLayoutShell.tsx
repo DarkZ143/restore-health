@@ -20,6 +20,7 @@ import {
   UserRound,
   Users,
   X,
+  FileText,
 } from "lucide-react";
 
 type Notification = {

@@ -364,7 +364,7 @@ export default function AdminLoginPage() {
 
               <button
                 type="button"
-                onClick={() => router.push("/Client/login")}
+                onClick={() => router.push("/auth/login")}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-[#b7d9bd] bg-[#e8f5ea] px-4 py-3.5 text-sm font-bold text-[#2f6b3a] shadow-sm transition-all duration-300 hover:scale-[1.01] hover:bg-[#dff0e2] hover:shadow-md dark:border-[#4d8056]/40 dark:bg-[#1b2d1f] dark:text-[#9ed5a7] dark:hover:bg-[#223b27]"
               >
                 <UserRound size={18} />

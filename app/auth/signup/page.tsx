@@ -13,7 +13,6 @@ import {
   ShieldCheck,
   CheckCircle2,
   Activity,
-  Lock,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -31,8 +30,6 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
 
   // ============================================================
   // OTP
@@ -98,11 +95,6 @@ export default function SignupPage() {
       return;
     }
 
-    if (password.length < 6 || password !== confirmPassword) {
-      setError("Password must be at least 6 characters and match confirmation.");
-      return;
-    }
-
     setFullName(trimmedName);
     setEmail(trimmedEmail);
 
@@ -142,7 +134,6 @@ export default function SignupPage() {
         },
         body: JSON.stringify({
           phoneNumber: formattedPhone,
-          password,
         }),
       });
 
@@ -241,7 +232,6 @@ export default function SignupPage() {
           fullName: fullName.trim(),
           email: email.trim().toLowerCase(),
           phoneNumber: formattedPhone,
-          password,
         }),
       });
 
@@ -483,43 +473,6 @@ export default function SignupPage() {
                     className="w-full rounded-xl border border-black/10 bg-white/50 py-3.5 pl-11 pr-4 text-sm text-[#092d28] outline-none transition-all focus:border-[#0dce91] focus:bg-white focus:ring-4 focus:ring-[#0dce91]/10 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:border-[#0dce91] dark:focus:bg-black/40"
                   />
                 </div>
-              </div>
-
-              {/* PASSWORD */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#0c302b] dark:text-emerald-100/80">
-                  Password
-                </label>
-                <div className="relative">
-                  <Lock size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#54654f] dark:text-emerald-100/50" />
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                    placeholder="At least 6 characters"
-                    autoComplete="new-password"
-                    className="w-full rounded-xl border border-black/10 bg-white/50 py-3.5 pl-11 pr-4 text-sm text-[#092d28] outline-none transition-all focus:border-[#0dce91] focus:bg-white focus:ring-4 focus:ring-[#0dce91]/10 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:border-[#0dce91] dark:focus:bg-black/40"
-                  />
-                </div>
-              </div>
-
-              {/* CONFIRM PASSWORD */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold uppercase tracking-wider text-[#0c302b] dark:text-emerald-100/80">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="Repeat your password"
-                  autoComplete="new-password"
-                  className="w-full rounded-xl border border-black/10 bg-white/50 py-3.5 px-4 text-sm text-[#092d28] outline-none transition-all focus:border-[#0dce91] focus:bg-white focus:ring-4 focus:ring-[#0dce91]/10 dark:border-white/10 dark:bg-black/20 dark:text-white dark:focus:border-[#0dce91] dark:focus:bg-black/40"
-                />
               </div>
 
               {/* CONTINUE */}

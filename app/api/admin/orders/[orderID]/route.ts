@@ -1,12 +1,13 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/lib/firebaseAdmin";
 
 export async function GET(
-  request: Request,
-  { params }: { params: { orderId: string } },
+  request: NextRequest,
+  { params }: { params: Promise<{ orderID: string }> },
 ) {
   try {
-    const { orderId } = params;
+    const { orderID } = await params;
+    const orderId = orderID;
 
     // 1. 🛡️ SECURITY CHECK: VERIFY ADMIN
     const authHeader = request.headers.get("Authorization");

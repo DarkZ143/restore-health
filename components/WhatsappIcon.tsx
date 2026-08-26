@@ -470,7 +470,7 @@ export default function FloatingWhatsAppButton() {
                 <MessageCircle size={24} />
               </div>
 
-              <h2 className="text-xl font-extrabold text-[#263326] dark:text-white">
+              <h2 className="text-xl font-extrabold text-[#263326] dark:text-white cursor-pointer">
                 Raise a Complaint
               </h2>
 

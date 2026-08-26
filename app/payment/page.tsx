@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
@@ -65,7 +65,7 @@ function formatCurrency(amount: number) {
 /* =========================================================
    PAGE
 ========================================================= */
-export default function PaymentPage() {
+function PaymentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -671,5 +671,29 @@ export default function PaymentPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen items-center justify-center bg-[#f6f8f4] px-5">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#eaf5ef] text-[#087443]">
+              <Loader2 size={30} className="animate-spin" />
+            </div>
+            <h2 className="mt-5 text-lg font-black text-[#1f2d24]">
+              Loading payment details
+            </h2>
+            <p className="mt-2 text-sm text-[#7c887f]">
+              Please wait while we prepare your secure payment page.
+            </p>
+          </div>
+        </main>
+      }
+    >
+      <PaymentPageContent />
+    </Suspense>
   );
 }

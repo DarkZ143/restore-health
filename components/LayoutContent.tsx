@@ -10,30 +10,52 @@ import FloatingWhatsAppButton from "@/components/WhatsappIcon";
 export default function LayoutContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
-  // Pages where Navbar / Footer / WhatsApp should NOT appear
+  // ============================================================
+  // PRIVATE / DASHBOARD PAGES
+  // ============================================================
+
   const isDashboard = pathname.startsWith("/dashboard");
   const isProfile = pathname.startsWith("/profile");
 
-  // Private/Admin pages where public layout elements are hidden
   const isPrivatePage =
     isDashboard ||
     isProfile ||
     pathname.startsWith("/transactions") ||
     pathname.startsWith("/invoices") ||
-    pathname.startsWith("/admin"); // YAHAN FIX KIYA HAI: Ab koi bhi /admin page ho, navbar hide ho jayega!
+    pathname.startsWith("/admin");
+
+  // ============================================================
+  // WHATSAPP VISIBILITY
+  // ============================================================
+
+  // Ab yeh true hai, toh har page par dikhega.
+  // (Agar Admin panel pe nahi dikhana, toh isko aise likhein: const showWhatsApp = !pathname.startsWith("/admin"); )
+  const showWhatsApp = true;
 
   return (
     <>
-      {/* Navbar */}
+      {/* ======================================================
+          NAVBAR
+      ====================================================== */}
+
       {!isPrivatePage && <Navbar />}
 
-      {/* Page Content */}
+      {/* ======================================================
+          PAGE CONTENT
+      ====================================================== */}
+
       {children}
 
-      {/* WhatsApp */}
-      {!isPrivatePage && <FloatingWhatsAppButton />}
+      {/* ======================================================
+          WHATSAPP
+      ====================================================== */}
 
-      {/* Footer */}
+      {showWhatsApp && <FloatingWhatsAppButton />}
+
+      {/* ======================================================
+          FOOTER
+      ====================================================== */}
+
       {!isPrivatePage && <Footer />}
     </>
   );

@@ -355,6 +355,13 @@ export default function DashboardPage() {
             onClick={() => setSidebarOpen(false)}
           />
 
+        <SidebarItem
+            icon={<FileText size={19} />}
+            label="Home"
+            href="/"
+            onClick={() => setSidebarOpen(false)}
+          />
+
           <SidebarItem
             icon={<CreditCard size={19} />}
             label="Transactions"
