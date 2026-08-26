@@ -62,6 +62,29 @@ export default function LoginPage() {
   const [countdown, setCountdown] = useState(0);
 
   // ==========================================================
+  // REDIRECT IF ALREADY LOGGED IN
+  // ==========================================================
+
+  useEffect(() => {
+    const loggedIn = localStorage.getItem("restorehealth_logged_in") === "true";
+    const sessionExpiresAt = Number(
+      localStorage.getItem("restorehealth_session_expires_at") || 0,
+    );
+
+    if (loggedIn && (!sessionExpiresAt || Date.now() < sessionExpiresAt)) {
+      router.replace("/dashboard");
+      return;
+    }
+
+    if (loggedIn && sessionExpiresAt && Date.now() >= sessionExpiresAt) {
+      localStorage.removeItem("restorehealth_logged_in");
+      localStorage.removeItem("restorehealth_session_expires_at");
+      localStorage.removeItem("restorehealth_phone");
+      localStorage.removeItem("restorehealth_user");
+    }
+  }, [router]);
+
+  // ==========================================================
   // OTP COUNTDOWN
   // ==========================================================
 
@@ -206,6 +229,10 @@ export default function LoginPage() {
       localStorage.setItem("restorehealth_phone", phone);
 
       localStorage.setItem("restorehealth_logged_in", "true");
+      localStorage.setItem(
+        "restorehealth_session_expires_at",
+        String(Date.now() + 12 * 60 * 60 * 1000),
+      );
 
       setMessage(data.message || "Login successful.");
       toast.success("Login successful. Welcome back!");

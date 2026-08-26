@@ -124,6 +124,17 @@ export default function DashboardPage() {
         // GET LOGGED-IN USER PHONE
         // ------------------------------------------------------
 
+        const sessionExpiresAt = Number(
+          localStorage.getItem("restorehealth_session_expires_at") || 0,
+        );
+
+        if (sessionExpiresAt && Date.now() > sessionExpiresAt) {
+          clearClientSession();
+          toast.error("Your session expired. Please login again.");
+          router.replace("/auth/login");
+          return;
+        }
+
         const phoneNumber =
           localStorage.getItem("userPhone") ||
           localStorage.getItem("restorehealth_phone") ||
@@ -134,6 +145,7 @@ export default function DashboardPage() {
         }
 
         if (!phoneNumber) {
+          clearClientSession();
           router.replace("/auth/login");
           return;
         }
@@ -202,21 +214,30 @@ export default function DashboardPage() {
   }, [router]);
 
   // ============================================================
-  // LOGOUT
+  // CLEAR CLIENT SESSION
   // ============================================================
 
-  const handleLogout = () => {
+  const clearClientSession = () => {
     localStorage.removeItem("userPhone");
     localStorage.removeItem("restorehealth_phone");
     localStorage.removeItem("user");
     localStorage.removeItem("restorehealth_user");
     localStorage.removeItem("isLoggedIn");
     localStorage.removeItem("restorehealth_logged_in");
+    localStorage.removeItem("restorehealth_session_expires_at");
     localStorage.removeItem("authToken");
     localStorage.removeItem("userId");
 
     sessionStorage.removeItem("loginPhoneNumber");
     sessionStorage.removeItem("userId");
+  };
+
+  // ============================================================
+  // LOGOUT
+  // ============================================================
+
+  const handleLogout = () => {
+    clearClientSession();
 
     toast.success("You have been logged out.");
     router.replace("/auth/login");
