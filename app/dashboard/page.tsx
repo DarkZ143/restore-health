@@ -109,6 +109,25 @@ export default function DashboardPage() {
   };
 
   // ============================================================
+  // CLEAR CLIENT SESSION
+  // ============================================================
+
+  const clearClientSession = () => {
+    localStorage.removeItem("userPhone");
+    localStorage.removeItem("restorehealth_phone");
+    localStorage.removeItem("user");
+    localStorage.removeItem("restorehealth_user");
+    localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("restorehealth_logged_in");
+    localStorage.removeItem("restorehealth_session_expires_at");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userId");
+
+    sessionStorage.removeItem("loginPhoneNumber");
+    sessionStorage.removeItem("userId");
+  };
+
+  // ============================================================
   // FETCH DASHBOARD DATA
   // ============================================================
 
@@ -212,25 +231,6 @@ export default function DashboardPage() {
       mounted = false;
     };
   }, [router]);
-
-  // ============================================================
-  // CLEAR CLIENT SESSION
-  // ============================================================
-
-  const clearClientSession = () => {
-    localStorage.removeItem("userPhone");
-    localStorage.removeItem("restorehealth_phone");
-    localStorage.removeItem("user");
-    localStorage.removeItem("restorehealth_user");
-    localStorage.removeItem("isLoggedIn");
-    localStorage.removeItem("restorehealth_logged_in");
-    localStorage.removeItem("restorehealth_session_expires_at");
-    localStorage.removeItem("authToken");
-    localStorage.removeItem("userId");
-
-    sessionStorage.removeItem("loginPhoneNumber");
-    sessionStorage.removeItem("userId");
-  };
 
   // ============================================================
   // LOGOUT
