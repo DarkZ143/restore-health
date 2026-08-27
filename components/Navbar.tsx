@@ -4,11 +4,13 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
-import { Menu, X, Moon, Sun, CircleUserRound } from "lucide-react";
+import { Menu, X, Moon, Sun, CircleUserRound, LogOut } from "lucide-react";
+import { signOut } from "firebase/auth";
 
 import { useTheme } from "../app/providers/ThemeProvider";
+import { auth } from "../lib/firebase";
 
 // =====================================================
 // NAVIGATION ITEMS
@@ -59,9 +61,11 @@ const navItems = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   const { theme, toggleTheme } = useTheme();
 
@@ -73,7 +77,26 @@ export default function Navbar() {
 
   useEffect(() => {
     setMounted(true);
+
+    const syncAuthState = () => {
+      setLoggedIn(
+        localStorage.getItem("restorehealth_logged_in") === "true",
+      );
+    };
+
+    syncAuthState();
+    window.addEventListener("storage", syncAuthState);
+    window.addEventListener("restorehealth-auth-change", syncAuthState);
+
+    return () => {
+      window.removeEventListener("storage", syncAuthState);
+      window.removeEventListener("restorehealth-auth-change", syncAuthState);
+    };
   }, []);
+
+  useEffect(() => {
+    setLoggedIn(localStorage.getItem("restorehealth_logged_in") === "true");
+  }, [pathname]);
 
   // =====================================================
   // ACTIVE PAGE CHECK
@@ -125,6 +148,29 @@ export default function Navbar() {
 
   const closeMobileMenu = () => {
     setMobileOpen(false);
+  };
+
+  const handleLogout = async () => {
+    localStorage.removeItem("userPhone");
+    localStorage.removeItem("restorehealth_phone");
+    localStorage.removeItem("user");
+    localStorage.removeItem("restorehealth_user");
+    localStorage.removeItem("isLoggedIn");
+    localStorage.removeItem("restorehealth_logged_in");
+    localStorage.removeItem("restorehealth_session_expires_at");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("userId");
+
+    sessionStorage.removeItem("loginPhoneNumber");
+    sessionStorage.removeItem("userId");
+
+    try {
+      await signOut(auth);
+    } finally {
+      setLoggedIn(false);
+      closeMobileMenu();
+      router.replace("/auth/login");
+    }
   };
 
   return (
@@ -429,6 +475,38 @@ export default function Navbar() {
                   </Link>
                 );
               })}
+
+              {mounted && loggedIn && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  aria-label="Logout"
+                  title="Logout"
+                  className="
+                  flex
+                  h-10
+                  w-10
+                  shrink-0
+                  items-center
+                  justify-center
+                  rounded-full
+                  border
+                  border-[#E8D0C9]
+                  bg-[#FFF6F3]
+                  text-[#A33A25]
+                  transition-all
+                  duration-200
+                  hover:scale-105
+                  hover:border-[#A33A25]
+                  hover:bg-[#FCE8E2]
+                  dark:border-[#684238]
+                  dark:bg-[#291B18]
+                  dark:text-[#F08B73]
+                  "
+                >
+                  <LogOut size={20} strokeWidth={2.2} aria-hidden="true" />
+                </button>
+              )}
             </div>
 
             {/* =============================================
@@ -851,6 +929,35 @@ export default function Navbar() {
                   </Link>
                 );
               })}
+
+              {mounted && loggedIn && (
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  aria-label="Logout"
+                  className="
+                  flex
+                  items-center
+                  gap-3
+                  border-b
+                  border-gray-100
+                  py-4
+                  text-left
+                  text-[16px]
+                  font-medium
+                  text-[#A33A25]
+                  transition-all
+                  duration-300
+                  hover:bg-[#FFF6F3]
+                  dark:border-gray-700
+                  dark:text-[#F08B73]
+                  dark:hover:bg-[#291B18]
+                  "
+                >
+                  <LogOut size={20} strokeWidth={2.2} aria-hidden="true" />
+                  Logout
+                </button>
+              )}
             </div>
           </div>
         </div>
