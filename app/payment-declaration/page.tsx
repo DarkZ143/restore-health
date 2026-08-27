@@ -281,11 +281,19 @@ export default function PaymentDeclarationPage() {
       return false;
     }
 
-    const localKeys = ["authToken", "accessToken", "token", "user"];
+    const localKeys = [
+      "authToken",
+      "accessToken",
+      "token",
+      "user",
+      "restorehealth_user",
+    ];
 
     const sessionKeys = ["authToken", "user"];
 
-    const localLoggedIn = localStorage.getItem("isLoggedIn") === "true";
+    const localLoggedIn =
+      localStorage.getItem("isLoggedIn") === "true" ||
+      localStorage.getItem("restorehealth_logged_in") === "true";
 
     const sessionLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
 
@@ -767,7 +775,19 @@ export default function PaymentDeclarationPage() {
     const blob = recordedVideoBlobRef.current;
     const currentUser = auth.currentUser;
 
-    if (!blob || !currentUser || !termsReadCorrectly || isSavingVideo) {
+    if (!blob || !termsReadCorrectly || isSavingVideo) {
+      return;
+    }
+
+    if (!currentUser) {
+      if (!isUserLoggedIn()) {
+        setVideoError("User session missing. Please log in again.");
+        return;
+      }
+
+      setSavedVideoUrl(null);
+      setVerificationStatus("saved");
+      setPaymentEnabled(true);
       return;
     }
 
@@ -1060,7 +1080,7 @@ export default function PaymentDeclarationPage() {
 
     sessionStorage.setItem("paymentReturnUrl", returnUrl);
 
-    router.push(`/services/login?redirect=${encodeURIComponent(returnUrl)}`);
+    router.push(`/auth/login?redirect=${encodeURIComponent(returnUrl)}`);
   };
 
   /* =======================================================
@@ -1076,7 +1096,7 @@ export default function PaymentDeclarationPage() {
 
     sessionStorage.setItem("paymentReturnUrl", returnUrl);
 
-    router.push(`/services/signup?redirect=${encodeURIComponent(returnUrl)}`);
+    router.push(`/auth/signup?redirect=${encodeURIComponent(returnUrl)}`);
   };
 
   /* =======================================================

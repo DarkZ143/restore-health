@@ -48,6 +48,20 @@ async function parseApiResponse(response: Response): Promise<ApiResponse> {
 export default function LoginPage() {
   const router = useRouter();
 
+  const getRedirectUrl = () => {
+    if (typeof window === "undefined") {
+      return "/dashboard";
+    }
+
+    const redirect = new URLSearchParams(window.location.search).get(
+      "redirect",
+    );
+
+    return redirect?.startsWith("/") && !redirect.startsWith("//")
+      ? redirect
+      : "/dashboard";
+  };
+
   const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState("");
 
@@ -72,7 +86,7 @@ export default function LoginPage() {
     );
 
     if (loggedIn && (!sessionExpiresAt || Date.now() < sessionExpiresAt)) {
-      router.replace("/dashboard");
+      router.replace(getRedirectUrl());
       return;
     }
 
@@ -237,11 +251,7 @@ export default function LoginPage() {
       setMessage(data.message || "Login successful.");
       toast.success("Login successful. Welcome back!");
 
-      // ======================================================
-      // DASHBOARD
-      // ======================================================
-
-      router.push("/dashboard");
+      router.push(getRedirectUrl());
     } catch (error) {
       console.error("❌ Login Verify OTP Error:", error);
 
