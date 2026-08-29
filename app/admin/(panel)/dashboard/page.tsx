@@ -46,8 +46,15 @@ type DashboardData = {
 
 export default function AdminDashboardPage() {
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [verificationRequests, setVerificationRequests] = useState<any[]>([]);
+  const [verificationRequestsLoading, setVerificationRequestsLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Per-request reject reason state
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReasonMap, setRejectReasonMap] = useState<Record<string, string>>({});
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // =====================================================
   // FETCH DASHBOARD DATA (SECURE WITH FIREBASE TOKEN)
@@ -103,9 +110,153 @@ export default function AdminDashboardPage() {
     }
   }, []);
 
+  const loadVerificationRequests = useCallback(async () => {
+    try {
+      setVerificationRequestsLoading(true);
+
+      let token = "";
+      const currentUser = auth.currentUser;
+
+      if (currentUser) {
+        token = await getIdToken(currentUser, true);
+      } else {
+        await new Promise((resolve) => {
+          const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) token = await getIdToken(user, true);
+            unsubscribe();
+            resolve(null);
+          });
+        });
+      }
+
+      if (!token) {
+        throw new Error("Authentication token missing. Please relogin.");
+      }
+
+      const response = await fetch("/api/admin/verification-requests", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.message || "Unable to load verification requests.");
+      }
+
+      const rawRequests = data.requests || [];
+      const sortedRequests = [...rawRequests].sort((a: any, b: any) => {
+        const getTs = (item: any) => {
+          const dateVal = item.updatedAt || item.createdAt;
+          if (!dateVal) return Number.MAX_SAFE_INTEGER;
+          const t = new Date(dateVal).getTime();
+          return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+        };
+        return getTs(b) - getTs(a);
+      });
+
+      setVerificationRequests(sortedRequests);
+    } catch (err: any) {
+      console.error("Verification requests load error:", err);
+    } finally {
+      setVerificationRequestsLoading(false);
+    }
+  }, []);
+
+  const handleVerificationAction = async (
+    requestId: string,
+    action: "approve" | "reject",
+    reason = "",
+  ) => {
+    try {
+      setActionLoadingId(requestId);
+
+      let token = "";
+      const currentUser = auth.currentUser;
+
+      if (currentUser) {
+        token = await getIdToken(currentUser, true);
+      } else {
+        await new Promise((resolve) => {
+          const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) token = await getIdToken(user, true);
+            unsubscribe();
+            resolve(null);
+          });
+        });
+      }
+
+      if (!token) {
+        throw new Error("Authentication token missing. Please relogin.");
+      }
+
+      const response = await fetch(
+        `/api/admin/verification-requests/${requestId}/${action}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: action === "reject" ? JSON.stringify({ rejectionReason: reason }) : undefined,
+        },
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data?.message || `Failed to ${action} verification request.`);
+      }
+
+      const nowIso = new Date().toISOString();
+
+      setVerificationRequests((current) => {
+        const updatedList = current.map((item) =>
+          item.id === requestId
+            ? {
+                ...item,
+                verificationStatus: action === "approve" ? "APPROVED" : "REJECTED",
+                paymentStatus: action === "approve" ? "APPROVED" : "REJECTED",
+                rejectionReason: action === "reject" ? reason : item.rejectionReason,
+                updatedAt: nowIso,
+              }
+            : item,
+        );
+
+        return [...updatedList].sort((a: any, b: any) => {
+          const getTs = (item: any) => {
+            const dateVal = item.updatedAt || item.createdAt;
+            if (!dateVal) return Number.MAX_SAFE_INTEGER;
+            const t = new Date(dateVal).getTime();
+            return isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+          };
+          return getTs(b) - getTs(a);
+        });
+      });
+
+      // Clear reject state for this request
+      setRejectingId(null);
+      setRejectReasonMap((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
+    } catch (err: any) {
+      console.error(`Verification ${action} error:`, err);
+      setError(err?.message || `Unable to ${action} verification request.`);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
   useEffect(() => {
     loadDashboard();
-  }, [loadDashboard]);
+    loadVerificationRequests();
+  }, [loadDashboard, loadVerificationRequests]);
 
   // Data formate karne ka function (Rupees ke liye)
   const formatCurrency = (amount: number) => {
@@ -114,6 +265,37 @@ export default function AdminDashboardPage() {
       currency: "INR",
       maximumFractionDigits: 0,
     }).format(amount);
+  };
+
+  const formatAmountWithGst = (priceInput: any) => {
+    const str = String(priceInput || "10000");
+    const num = Number(str.replace(/[^\d]/g, "")) || 10000;
+    const gst = Math.round(num * 0.05);
+    const total = num + gst;
+
+    const formattedNum = num.toLocaleString("en-IN");
+    const formattedTotal = total.toLocaleString("en-IN");
+
+    return `₹${formattedNum} + GST (5%) = ₹${formattedTotal}`;
+  };
+
+  const formatSubmittedDate = (val: any) => {
+    if (!val) return "—";
+    try {
+      const d = new Date(val);
+      if (isNaN(d.getTime())) return String(val);
+      return d.toLocaleString("en-IN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      });
+    } catch {
+      return String(val || "—");
+    }
   };
 
   const stats = dashboard?.stats;
@@ -218,6 +400,167 @@ export default function AdminDashboardPage() {
           />
         </section>
       )}
+
+      <section className="rounded-3xl border border-[#e5ebe5] bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#111611]">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-extrabold text-[#1f2d24] dark:text-white">
+              Verification Requests
+            </h3>
+            <p className="mt-1 text-xs font-medium text-[#8a958d]">
+              Review company verification submissions before enabling payment.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={loadVerificationRequests}
+            className="rounded-xl border border-[#dfe7df] bg-[#f8faf8] px-3 py-2 text-[11px] font-black text-[#087443]"
+          >
+            Refresh
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-3">
+          {verificationRequestsLoading ? (
+            <div className="flex items-center gap-3 rounded-2xl border border-dashed border-[#dfe7df] bg-[#fafcfb] p-4 text-sm font-bold text-[#69756d]">
+              <Loader2 size={18} className="animate-spin" />
+              Loading verification requests...
+            </div>
+          ) : verificationRequests.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-[#dfe7df] bg-[#fafcfb] p-5 text-sm font-bold text-[#69756d]">
+              No verification requests yet.
+            </div>
+          ) : (
+            verificationRequests.map((request) => {
+              const isRejecting = rejectingId === request.id;
+              const isLoading = actionLoadingId === request.id;
+              const currentRejectReason = rejectReasonMap[request.id] || "";
+
+              return (
+                <div
+                  key={request.id}
+                  className="rounded-2xl border border-[#edf1ee] bg-[#fafcfb] p-4 dark:border-white/5 dark:bg-white/5"
+                >
+                  {/* REQUEST HEADER */}
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-1 text-xs">
+                      <p className="text-sm font-black text-[#1f2d24] dark:text-white">
+                        {request.companyName || "Resote Health Services"}
+                      </p>
+                      <p className="font-semibold text-[#536057]">
+                        <span className="font-bold text-[#1f2d24] dark:text-white">Client Name: </span>
+                        {request.clientName || request.userName || request.userEmail || "Restore Health"}
+                      </p>
+                      <p className="font-semibold text-[#536057]">
+                        <span className="font-bold text-[#1f2d24] dark:text-white">Mob No.: </span>
+                        {request.clientPhone || request.mobileNumber || request.phoneNumber || request.phone || request.verificationNumber || "9205456671"}
+                      </p>
+                      <p className="font-semibold text-[#536057]">
+                        <span className="font-bold text-[#1f2d24] dark:text-white">Plan: </span>
+                        {request.planName || "Individual"}{request.familyCoverage ? ` (${request.familyCoverage})` : ""}
+                      </p>
+                      <p className="font-bold text-[#087443] dark:text-[#74c99e]">
+                        <span className="font-bold text-[#1f2d24] dark:text-white">Amount+GST: </span>
+                        {formatAmountWithGst(request.planPrice)}
+                      </p>
+                      <p className="text-[11px] text-[#8a958d]">
+                        <span className="font-bold text-[#1f2d24] dark:text-white">Submitted: </span>
+                        {formatSubmittedDate(request.createdAt)}
+                      </p>
+                      {request.verificationStatus === "REJECTED" && request.rejectionReason && (
+                        <p className="mt-1.5 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-[11px] font-semibold text-red-700">
+                          Rejection Reason: {request.rejectionReason}
+                        </p>
+                      )}
+                    </div>
+
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${
+                        request.verificationStatus === "APPROVED"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : request.verificationStatus === "REJECTED"
+                            ? "bg-red-100 text-red-700"
+                            : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {request.verificationStatus || "PENDING"}
+                    </span>
+                  </div>
+
+                  {/* ACTIONS */}
+                  <div className="mt-4">
+                    {/* Reject reason input */}
+                    {isRejecting && (
+                      <div className="mb-3">
+                        <label className="mb-1 block text-[11px] font-black text-[#536057] uppercase tracking-wider">
+                          Rejection Reason (optional)
+                        </label>
+                        <input
+                          type="text"
+                          value={currentRejectReason}
+                          onChange={(e) =>
+                            setRejectReasonMap((prev) => ({
+                              ...prev,
+                              [request.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Enter reason for rejection..."
+                          className="w-full rounded-xl border border-[#dfe7df] bg-white px-3 py-2 text-xs font-semibold text-[#1f2d24] outline-none focus:border-red-400"
+                        />
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      {/* Approve button */}
+                      <button
+                        type="button"
+                        onClick={() => handleVerificationAction(request.id, "approve")}
+                        disabled={request.verificationStatus === "APPROVED" || isLoading || isRejecting}
+                        className="rounded-full bg-[#087443] px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isLoading && !isRejecting ? "Approving..." : "Approve"}
+                      </button>
+
+                      {/* Reject flow */}
+                      {!isRejecting ? (
+                        <button
+                          type="button"
+                          onClick={() => setRejectingId(request.id)}
+                          disabled={request.verificationStatus === "REJECTED" || isLoading}
+                          className="rounded-full bg-red-600 px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          Reject
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleVerificationAction(request.id, "reject", currentRejectReason)
+                            }
+                            disabled={isLoading}
+                            className="rounded-full bg-red-600 px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {isLoading ? "Rejecting..." : "Confirm Reject"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRejectingId(null)}
+                            disabled={isLoading}
+                            className="rounded-full border border-[#dfe7df] bg-white px-4 py-2 text-xs font-black text-[#536057] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </section>
 
       {/* =====================================================
           LOWER SECTION (SILVER & WHITE PANELS)

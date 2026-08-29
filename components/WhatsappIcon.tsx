@@ -13,7 +13,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-const WHATSAPP_NUMBER = "919205456671";
+const WHATSAPP_NUMBER = "919648676538";
 
 export default function FloatingWhatsAppButton() {
   const router = useRouter();

@@ -1,8 +1,8 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
+import { getApp, getApps, initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// 🔴 TEMPORARY HARDCODE TEST
+
 const firebaseConfig = {
   apiKey: "AIzaSyAnlbxAMSFsr1zZWSw0fFpl5ARYgEZHD-U",
   authDomain: "restorehealthservices-967ba.firebaseapp.com",
@@ -13,12 +13,9 @@ const firebaseConfig = {
   measurementId: "G-VY7JDFTWMB",
 };
 
-// Browser mein sirf verification ke liye
-if (typeof window !== "undefined") {
-  console.log("🔥 Firebase Config Loaded (Direct Strings):", firebaseConfig);
-}
-
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+const app = getApps().length
+  ? getApp()
+  : initializeApp(firebaseConfig);
 
 const auth = getAuth(app);
 const db = getFirestore(app);

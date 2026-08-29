@@ -2,10 +2,46 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const { amount, service } = await request.json();
+    const { amount, service, userId } = await request.json();
     const numericAmount = Number(amount);
     const keyId = process.env.RAZORPAY_KEY_ID;
     const keySecret = process.env.RAZORPAY_KEY_SECRET;
+
+    if (!userId) {
+      return NextResponse.json(
+        { message: "User ID is required to continue with payment." },
+        { status: 400 },
+      );
+    }
+
+    const verificationSnapshot = await (await import("@/lib/firebaseAdmin")).adminDb
+      .collection("verificationRequests")
+      .where("userId", "==", String(userId))
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+
+    if (verificationSnapshot.empty) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Verification approval is required before payment can be initiated.",
+        },
+        { status: 403 },
+      );
+    }
+
+    const latestVerification = verificationSnapshot.docs[0].data();
+
+    if (latestVerification.verificationStatus !== "APPROVED") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Your verification request is still pending or rejected. Payment is blocked until approval.",
+        },
+        { status: 403 },
+      );
+    }
 
     if (!keyId || !keySecret) {
       return NextResponse.json(

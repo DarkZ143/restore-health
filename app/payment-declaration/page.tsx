@@ -2,9 +2,10 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { getIdToken, onAuthStateChanged } from "firebase/auth";
 
 import {
   ArrowLeft,
@@ -18,10 +19,8 @@ import {
   LockKeyhole,
   LogIn,
   Mic,
-  MicOff,
   Phone,
   PhoneCall,
-  Play,
   ShieldCheck,
   Square,
   UserPlus,
@@ -184,11 +183,140 @@ export default function PaymentDeclarationPage() {
   const [supportName, setSupportName] = useState("");
   const [supportPhone, setSupportPhone] = useState("");
 
+  const confirmationClientName = supportName.trim() || "Client Name";
+  const confirmationClientPhone = supportPhone.trim()
+    ? `+91 ${supportPhone.trim()}`
+    : "Phone not available";
+
   const [callStatus, setCallStatus] = useState<
     "idle" | "requesting" | "pending" | "approved" | "rejected"
   >("idle");
 
   const [callMessage, setCallMessage] = useState("");
+
+  const [paymentEnabled, setPaymentEnabled] = useState(false);
+
+  const [verificationRequestStatus, setVerificationRequestStatus] = useState<
+    "NOT_SUBMITTED" | "PENDING" | "APPROVED" | "REJECTED"
+  >("NOT_SUBMITTED");
+
+  const [verificationRequest, setVerificationRequest] = useState<any>(null);
+
+  // Company Confirmation Popup (shows fixed company details — no inputs)
+  const [showConfirmationPopup, setShowConfirmationPopup] = useState(false);
+
+  const [verificationRequestError, setVerificationRequestError] = useState("");
+
+  const [verificationRequestSubmitting, setVerificationRequestSubmitting] =
+    useState(false);
+
+  const isUserLoggedIn = useCallback(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    const localKeys = [
+      "authToken",
+      "accessToken",
+      "token",
+      "user",
+      "restorehealth_user",
+    ];
+
+    const sessionKeys = ["authToken", "user"];
+
+    const localLoggedIn =
+      localStorage.getItem("isLoggedIn") === "true" ||
+      localStorage.getItem("restorehealth_logged_in") === "true";
+
+    const sessionLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+
+    const hasLocalAuth = localKeys.some((key) => !!localStorage.getItem(key));
+
+    const hasSessionAuth = sessionKeys.some(
+      (key) => !!sessionStorage.getItem(key),
+    );
+
+    return localLoggedIn || sessionLoggedIn || hasLocalAuth || hasSessionAuth;
+  }, []);
+
+ const getAuthToken = useCallback(async (): Promise<string> => {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  try {
+    // Firebase auth state ko properly load hone do
+    const user = await new Promise<import("firebase/auth").User | null>(
+      (resolve) => {
+        if (auth.currentUser) {
+          resolve(auth.currentUser);
+          return;
+        }
+
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          unsubscribe();
+          resolve(firebaseUser);
+        });
+      },
+    );
+
+    if (!user) {
+      console.error("❌ Firebase user not authenticated.");
+      return "";
+    }
+
+    // IMPORTANT:
+    // Backend ko ONLY real Firebase ID token bhejna hai.
+    const token = await getIdToken(user, true);
+
+    if (!token) {
+      console.error("❌ Firebase ID token could not be generated.");
+      return "";
+    }
+
+    console.log("✅ Firebase ID token generated successfully.");
+    console.log("Firebase UID:", user.uid);
+
+    return token;
+  } catch (error) {
+    console.error("❌ Failed to get Firebase ID token:", error);
+    return "";
+  }
+}, []);
+
+  const fetchVerificationRequestStatus = useCallback(async () => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const token = await getAuthToken();
+
+      if (!token) {
+        return;
+      }
+
+      const response = await fetch("/api/verification/status", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      });
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+      const nextStatus = data?.verificationStatus || "NOT_SUBMITTED";
+      setVerificationRequestStatus(nextStatus);
+      setVerificationRequest(data?.request || null);
+      setPaymentEnabled(nextStatus === "APPROVED");
+    } catch (error) {
+      console.error("Failed to fetch verification request status:", error);
+    }
+  }, [getAuthToken, setVerificationRequestStatus, setVerificationRequest, setPaymentEnabled]);
 
   // Pre-fill Name & Phone if available in LocalStorage
   useEffect(() => {
@@ -211,18 +339,27 @@ export default function PaymentDeclarationPage() {
 
           if (name) setSupportName(name);
           if (phone) setSupportPhone(phone.replace(/\D/g, ""));
-        } catch (e) {
+        } catch {
           console.error("Error parsing user data");
         }
       }
     }
   }, []);
 
-  /* =======================================================
-     PAYMENT ACCESS
-  ======================================================= */
+  useEffect(() => {
+    fetchVerificationRequestStatus();
+  }, [fetchVerificationRequestStatus]);
 
-  const [paymentEnabled, setPaymentEnabled] = useState(false);
+  // Poll verification status every 10 seconds when PENDING
+  useEffect(() => {
+    if (verificationRequestStatus !== "PENDING") return;
+
+    const interval = setInterval(() => {
+      fetchVerificationRequestStatus();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [verificationRequestStatus, fetchVerificationRequestStatus]);
 
   /* =======================================================
      PLAN FROM URL
@@ -276,56 +413,152 @@ export default function PaymentDeclarationPage() {
      LOGIN CHECK
   ======================================================= */
 
-  const isUserLoggedIn = () => {
-    if (typeof window === "undefined") {
-      return false;
-    }
-
-    const localKeys = [
-      "authToken",
-      "accessToken",
-      "token",
-      "user",
-      "restorehealth_user",
-    ];
-
-    const sessionKeys = ["authToken", "user"];
-
-    const localLoggedIn =
-      localStorage.getItem("isLoggedIn") === "true" ||
-      localStorage.getItem("restorehealth_logged_in") === "true";
-
-    const sessionLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
-
-    const hasLocalAuth = localKeys.some((key) => !!localStorage.getItem(key));
-
-    const hasSessionAuth = sessionKeys.some(
-      (key) => !!sessionStorage.getItem(key),
-    );
-
-    return localLoggedIn || sessionLoggedIn || hasLocalAuth || hasSessionAuth;
-  };
-
   /* =======================================================
      PROCEED TO PAYMENT
   ======================================================= */
 
   const proceedToPayment = () => {
-    if (!paymentEnabled) {
+    // If approved — go directly to payment
+    if (verificationRequestStatus === "APPROVED") {
+      const params = new URLSearchParams({
+        planId: plan.planId,
+        plan: plan.planName,
+        family: plan.family,
+        price: String(membershipPrice),
+        gst: String(gstAmount),
+        total: String(totalAmount),
+        verificationMethod: verificationMethod || "",
+      });
+      router.push(`/payment?${params.toString()}`);
       return;
     }
 
-    const params = new URLSearchParams({
-      planId: plan.planId,
-      plan: plan.planName,
-      family: plan.family,
-      price: String(membershipPrice),
-      gst: String(gstAmount),
-      total: String(totalAmount),
-      verificationMethod: verificationMethod || "",
-    });
+    // If pending — block, show message
+    if (verificationRequestStatus === "PENDING") {
+      setVerificationRequestError(
+        "Your verification request is already pending admin approval.",
+      );
+      return;
+    }
 
-    router.push(`/payment?${params.toString()}`);
+    // If rejected or not submitted — open confirmation popup
+    if (
+      verificationRequestStatus === "NOT_SUBMITTED" ||
+      verificationRequestStatus === "REJECTED"
+    ) {
+      setShowConfirmationPopup(true);
+      setVerificationRequestError("");
+      return;
+    }
+  };
+
+  // Submit verification request — company details are FIXED on backend
+  const submitVerificationRequest = async () => {
+    try {
+      setVerificationRequestSubmitting(true);
+      setVerificationRequestError("");
+
+      const currentUser = auth.currentUser;
+      const token = await getAuthToken();
+
+      if (!token) {
+        throw new Error("Authentication required to submit verification.");
+      }
+
+      let clientName = "";
+      let clientPhone = "";
+
+      if (currentUser) {
+        clientName = currentUser.displayName || "";
+        clientPhone = currentUser.phoneNumber || "";
+      }
+
+      if (typeof window !== "undefined") {
+        const userKeys = ["user", "restorehealth_user", "currentUser"];
+        for (const key of userKeys) {
+          const val = localStorage.getItem(key) || sessionStorage.getItem(key);
+          if (val) {
+            try {
+              const parsed = JSON.parse(val);
+              if (!clientName) {
+                clientName =
+                  parsed?.fullName ||
+                  parsed?.displayName ||
+                  parsed?.name ||
+                  parsed?.customerName ||
+                  "";
+              }
+              if (!clientPhone) {
+                clientPhone =
+                  parsed?.phoneNumber ||
+                  parsed?.phone ||
+                  parsed?.mobile ||
+                  parsed?.userPhone ||
+                  "";
+              }
+            } catch {}
+          }
+        }
+
+        if (!clientPhone) {
+          clientPhone =
+            localStorage.getItem("userPhone") ||
+            localStorage.getItem("restorehealth_phone") ||
+            sessionStorage.getItem("loginPhoneNumber") ||
+            sessionStorage.getItem("userPhone") ||
+            "";
+        }
+
+        if (!clientName && supportName) {
+          clientName = supportName;
+        }
+
+        if (!clientPhone && supportPhone) {
+          clientPhone = supportPhone;
+        }
+      }
+
+      // Send client name, phone and plan details for admin display
+      const response = await fetch("/api/verification/request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          clientName: clientName.trim(),
+          clientPhone: clientPhone.trim(),
+          planName: plan.planName || "Individual",
+          planPrice: plan.price || "10000",
+          familyCoverage: plan.family || "",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data?.success) {
+        // If already PENDING, just close popup and show status
+        if (data?.verificationStatus === "PENDING") {
+          setVerificationRequestStatus("PENDING");
+          setShowConfirmationPopup(false);
+          setVerificationRequestError("");
+          return;
+        }
+        throw new Error(data?.message || "Unable to submit verification request.");
+      }
+
+      setVerificationRequestStatus("PENDING");
+      setVerificationRequest(null);
+      setShowConfirmationPopup(false);
+      setPaymentEnabled(false);
+      setVerificationRequestError("");
+    } catch (error: any) {
+      setVerificationRequestError(
+        error?.message || "Unable to submit verification request. Please try again.",
+      );
+    } finally {
+      setVerificationRequestSubmitting(false);
+    }
   };
 
   /* =======================================================
@@ -832,14 +1065,6 @@ export default function PaymentDeclarationPage() {
      ENABLE PAYMENT AFTER VIDEO
   ======================================================= */
 
-  const handleVideoSuccess = () => {
-    if (!termsReadCorrectly) {
-      return;
-    }
-
-    setPaymentEnabled(true);
-  };
-
   /* =======================================================
      CALL SUPPORT (FIXED)
   ======================================================= */
@@ -904,7 +1129,7 @@ export default function PaymentDeclarationPage() {
           try {
             const parsed = JSON.parse(storedUser);
             userId = parsed.uid || parsed.id || parsed.userId;
-          } catch (e) {
+          } catch {
             console.error("Failed to parse user for ID");
           }
         }
@@ -1440,7 +1665,8 @@ export default function PaymentDeclarationPage() {
 
                   {/* NEXT / PAYMENT */}
 
-                  {!paymentEnabled ? (
+                  {/* Start verification flow — shows when declarations accepted but not yet verified */}
+                  {!paymentEnabled && verificationRequestStatus !== "APPROVED" && (
                     <button
                       type="button"
                       disabled={
@@ -1457,7 +1683,18 @@ export default function PaymentDeclarationPage() {
 
                       {allChecked ? "Next" : `Accept ${3 - acceptedCount} More`}
                     </button>
-                  ) : (
+                  )}
+
+                  {/* Waiting for approval */}
+                  {verificationRequestStatus === "PENDING" && (
+                    <div className="mt-6 flex w-full items-center justify-center gap-2 rounded-full border-2 border-amber-300 bg-amber-50 px-5 py-4 text-sm font-black text-amber-800 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      Waiting for Approval
+                    </div>
+                  )}
+
+                  {/* APPROVED — proceed to payment */}
+                  {verificationRequestStatus === "APPROVED" && (
                     <button
                       type="button"
                       onClick={proceedToPayment}
@@ -1468,11 +1705,37 @@ export default function PaymentDeclarationPage() {
                     </button>
                   )}
 
+                  {/* REJECTED — submit again */}
+                  {verificationRequestStatus === "REJECTED" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowVerification(true);
+                        setVerificationMethod("video");
+                      }}
+                      className="mt-6 flex w-full items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-4 text-sm font-black text-white shadow-lg transition-all hover:-translate-y-0.5 hover:bg-amber-700"
+                    >
+                      <RefreshCw className="h-5 w-5" />
+                      Submit Again
+                    </button>
+                  )}
+
                   <p className="mt-3 text-center text-[10px] font-semibold leading-5 text-slate-400">
-                    {paymentEnabled
-                      ? "Verification completed successfully."
-                      : "Verification is required before payment."}
+                    {verificationRequestStatus === "APPROVED"
+                      ? "Verification approved. You can now proceed to payment."
+                      : verificationRequestStatus === "PENDING"
+                        ? "Waiting for admin approval before payment."
+                        : verificationRequestStatus === "REJECTED"
+                          ? "Verification rejected. Please resubmit."
+                          : "Verification is required before payment."}
                   </p>
+
+                  {/* Show rejection reason on right panel too */}
+                  {verificationRequestStatus === "REJECTED" && verificationRequest?.rejectionReason && (
+                    <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-center text-xs font-semibold text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-400">
+                      Rejection Reason: {verificationRequest.rejectionReason}
+                    </div>
+                  )}
 
                   <div className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-[#f4faf1] px-3 py-3 dark:bg-emerald-950/20">
                     <ShieldCheck className="h-4 w-4 shrink-0 text-[#17643d] dark:text-emerald-400" />
@@ -1950,18 +2213,106 @@ export default function PaymentDeclarationPage() {
                     )}
 
                     {verificationStatus === "saved" && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleVideoSuccess();
-                        }}
-                        className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#064627] px-5 py-4 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#095936]"
-                      >
-                        <CreditCard className="h-5 w-5" />
-                        Proceed to Payment
-                      </button>
+                      <>
+                        {/* Show PENDING status — no action button */}
+                        {verificationRequestStatus === "PENDING" && (
+                          <div className="flex flex-1 flex-col items-center justify-center gap-2 rounded-full border-2 border-amber-300 bg-amber-50 px-5 py-4 text-sm font-black text-amber-800 dark:border-amber-700 dark:bg-amber-950/20 dark:text-amber-300">
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Waiting for Admin Approval
+                          </div>
+                        )}
+
+                        {/* APPROVED — go to payment */}
+                        {verificationRequestStatus === "APPROVED" && (
+                          <button
+                            type="button"
+                            onClick={proceedToPayment}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#064627] px-5 py-4 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#095936]"
+                          >
+                            <CreditCard className="h-5 w-5" />
+                            Proceed to Payment
+                          </button>
+                        )}
+
+                        {/* REJECTED — Submit Again */}
+                        {verificationRequestStatus === "REJECTED" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowConfirmationPopup(true);
+                              setVerificationRequestError("");
+                            }}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-amber-600 px-5 py-4 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-amber-700"
+                          >
+                            <RefreshCw className="h-5 w-5" />
+                            Submit Again
+                          </button>
+                        )}
+
+                        {/* NOT_SUBMITTED — open confirmation popup */}
+                        {verificationRequestStatus === "NOT_SUBMITTED" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowConfirmationPopup(true);
+                              setVerificationRequestError("");
+                            }}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#064627] px-5 py-4 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#095936]"
+                          >
+                            <CreditCard className="h-5 w-5" />
+                            Proceed to Payment
+                          </button>
+                        )}
+                      </>
                     )}
                   </div>
+
+                  {/* PENDING status banner */}
+                  {verificationStatus === "saved" && verificationRequestStatus === "PENDING" && (
+                    <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950/20">
+                      <p className="text-center text-xs font-black text-amber-800 dark:text-amber-300">
+                        ✓ Verification request sent successfully.
+                      </p>
+                      <p className="mt-1 text-center text-xs font-semibold text-amber-700 dark:text-amber-400">
+                        Your request has been sent to the admin and is currently pending approval.
+                      </p>
+                      <p className="mt-2 text-center text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-500">
+                        Status: PENDING
+                      </p>
+                      <p className="mt-1 text-center text-[10px] text-amber-500 dark:text-amber-600">
+                        Payment will be available after your verification is approved.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* APPROVED status banner */}
+                  {verificationStatus === "saved" && verificationRequestStatus === "APPROVED" && (
+                    <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-950/20">
+                      <p className="text-center text-xs font-black text-emerald-800 dark:text-emerald-300">
+                        ✓ Verification Approved
+                      </p>
+                      <p className="mt-1 text-center text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                        Your verification has been approved. You can now proceed with payment.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* REJECTED status banner */}
+                  {verificationStatus === "saved" && verificationRequestStatus === "REJECTED" && (
+                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 dark:border-red-700 dark:bg-red-950/20">
+                      <p className="text-center text-xs font-black text-red-800 dark:text-red-300">
+                        ✗ Verification Rejected
+                      </p>
+                      {verificationRequest?.rejectionReason && (
+                        <p className="mt-1 text-center text-xs font-semibold text-red-700 dark:text-red-400">
+                          Reason: {verificationRequest.rejectionReason}
+                        </p>
+                      )}
+                      <p className="mt-2 text-center text-[10px] text-red-500">
+                        Please click &quot;Submit Again&quot; to resubmit your request.
+                      </p>
+                    </div>
+                  )}
 
                   {/* BACK METHOD */}
 
@@ -2151,6 +2502,113 @@ export default function PaymentDeclarationPage() {
                     Choose another verification method
                   </button>
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =====================================================
+          COMPANY CONFIRMATION POPUP
+          Fixed details — no user input required
+      ===================================================== */}
+
+      {showConfirmationPopup && (
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+          onClick={() => {
+            if (!verificationRequestSubmitting) setShowConfirmationPopup(false);
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-[#dce9cf] bg-white shadow-2xl dark:border-emerald-900 dark:bg-[#0d1d14]"
+          >
+            {/* Close button */}
+            {!verificationRequestSubmitting && (
+              <button
+                type="button"
+                onClick={() => setShowConfirmationPopup(false)}
+                className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-black/10 text-slate-600 transition hover:bg-black/20 dark:bg-white/10 dark:text-white"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            )}
+
+            {/* Header */}
+            <div className="bg-[#064627] px-6 pb-8 pt-7 text-center text-white">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/20">
+                <ShieldCheck className="h-8 w-8" />
+              </div>
+              <p className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-200">
+                Verification Required
+              </p>
+              <h2 className="mt-2 text-2xl font-black">Confirm Company Details</h2>
+              <p className="mx-auto mt-2 max-w-sm text-xs font-medium leading-5 text-emerald-100">
+                Please confirm the details below to continue with the verification approval process.
+              </p>
+            </div>
+
+            {/* Fixed company details */}
+            <div className="p-6">
+              <div className="rounded-2xl border border-emerald-100 bg-[#f4faf1] p-5 dark:border-emerald-900 dark:bg-emerald-950/20">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#064627] text-white">
+                    <ShieldCheck className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Client Name
+                    </p>
+                    <p className="text-base font-black text-slate-900 dark:text-white">
+                      {confirmationClientName}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 border-t border-emerald-100 pt-4 dark:border-emerald-900">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#064627] text-white">
+                    <Phone className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Client Phone
+                    </p>
+                    <p className="text-base font-black text-slate-900 dark:text-white">
+                      {confirmationClientPhone}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {verificationRequestError && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700 dark:border-red-900 dark:bg-red-950/20 dark:text-red-400">
+                  {verificationRequestError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={submitVerificationRequest}
+                disabled={verificationRequestSubmitting}
+                className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-[#064627] px-5 py-4 text-sm font-black text-white shadow-md transition hover:-translate-y-0.5 hover:bg-[#095936] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {verificationRequestSubmitting ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5" />
+                )}
+                {verificationRequestSubmitting ? "Sending Request..." : "Confirm"}
+              </button>
+
+              {!verificationRequestSubmitting && (
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmationPopup(false)}
+                  className="mt-3 w-full rounded-full px-5 py-3 text-xs font-bold text-slate-400 transition hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  Cancel
+                </button>
               )}
             </div>
           </div>

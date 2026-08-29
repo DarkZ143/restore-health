@@ -125,6 +125,35 @@ export async function POST(request: Request) {
       );
     }
 
+    const verificationSnapshot = await adminDb
+      .collection("verificationRequests")
+      .where("userId", "==", userId)
+      .orderBy("createdAt", "desc")
+      .limit(1)
+      .get();
+
+    if (verificationSnapshot.empty) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Verification approval is required before payment can be submitted.",
+        },
+        { status: 403 },
+      );
+    }
+
+    const latestVerification = verificationSnapshot.docs[0].data();
+
+    if (latestVerification.verificationStatus !== "APPROVED") {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Your verification request is pending or rejected. Payment submission is not allowed until approval.",
+        },
+        { status: 403 },
+      );
+    }
+
     const numericAmount = Number(amount);
 
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
